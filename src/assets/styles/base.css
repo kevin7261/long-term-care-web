@@ -1,0 +1,31 @@
+:root {
+  /* 顏色變量 */
+  --primary-bg: #f8f9fa;
+  --shadow-color: rgba(0, 0, 0, 0.1);
+  
+  /* 間距變量 */
+  --spacing-xs: 0.25rem;
+  --spacing-sm: 0.5rem;
+  --spacing-md: 1rem;
+  --spacing-lg: 1.5rem;
+  
+  /* 陰影變量 */
+  --shadow-sm: 0 1px 3px var(--shadow-color);
+  --shadow-md: 2px 0 5px var(--shadow-color);
+  
+  /* 過渡變量 */
+  --transition-speed: 0.1s;
+}
+
+/* 基礎容器樣式 */
+.container-fluid {
+  padding: 0;
+  margin: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* 基礎過渡效果 */
+.transition-all {
+  transition: all var(--transition-speed) ease;
+} 

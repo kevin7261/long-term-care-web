@@ -1,40 +1,95 @@
 <template>
+  <!-- 控制面板主容器 -->
   <div class="sidebar">
-    <div class="p-3">
+    <div class="sidebar-content">
+      <!-- 標題區域 -->
       <h2 class="mb-4">控制面板</h2>
-      <div class="d-grid gap-3">
-        <button class="btn btn-primary" @click="$emit('button-click')">
+
+      <!-- 控制按鈕區域 -->
+      <div class="sidebar-buttons">
+        <!-- 位置按鈕：點擊時觸發 button-click 事件 -->
+        <button 
+          class="btn btn-primary w-100" 
+          @click="$emit('button-click')"
+        >
           <i class="bi bi-geo-alt"></i> 顯示位置
         </button>
+
+        <!-- 圖層開關：用於切換地圖圖層顯示 -->
         <div class="form-check form-switch">
-          <input class="form-check-input" type="checkbox" id="layerSwitch">
-          <label class="form-check-label" for="layerSwitch">切換圖層</label>
+          <input 
+            class="form-check-input" 
+            type="checkbox" 
+            id="layerSwitch"
+          >
+          <label 
+            class="form-check-label" 
+            for="layerSwitch"
+          >
+            切換圖層
+          </label>
         </div>
-        <button class="btn btn-success" @click="$emit('load-csv')">
+
+        <!-- CSV 載入按鈕：點擊時觸發 load-csv 事件 -->
+        <button 
+          class="btn btn-success w-100" 
+          @click="$emit('load-csv')"
+        >
           <i class="bi bi-file-earmark-spreadsheet"></i> 讀取 CSV
         </button>
-        <!-- 錯誤訊息顯示 -->
-        <div v-if="errorMessage" class="alert alert-danger mt-3">
+
+        <!-- 錯誤訊息顯示區域：當有錯誤時顯示 -->
+        <div 
+          v-if="errorMessage" 
+          class="alert alert-danger mt-3 mb-0"
+        >
           {{ errorMessage }}
         </div>
-        <!-- CSV 資料顯示區域 -->
-        <div v-if="csvData.length > 0" class="csv-data-container">
-          <h5 class="mt-3 mb-2">CSV 資料預覽</h5>
-          <div class="table-responsive">
-            <table class="table table-sm table-striped">
-              <thead>
-                <tr>
-                  <th v-for="header in csvHeaders" :key="header">{{ header }}</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="(row, index) in csvData.slice(0, 5)" :key="index">
-                  <td v-for="header in csvHeaders" :key="header">{{ row[header] }}</td>
-                </tr>
-              </tbody>
-            </table>
+
+        <!-- CSV 資料預覽區域：當有資料時顯示 -->
+        <div 
+          v-if="csvData.length > 0" 
+          class="sidebar-table-container"
+        >
+          <div class="p-2">
+            <h5 class="mb-2">CSV 資料預覽</h5>
+            <!-- 響應式表格容器 -->
+            <div class="table-responsive">
+              <table class="table table-sm table-striped sidebar-table">
+                <!-- 表格標題行 -->
+                <thead>
+                  <tr>
+                    <th 
+                      v-for="header in displayHeaders" 
+                      :key="header" 
+                      class="text-nowrap"
+                    >
+                      {{ header }}
+                    </th>
+                  </tr>
+                </thead>
+                <!-- 表格內容行 -->
+                <tbody>
+                  <tr 
+                    v-for="(row, index) in previewData" 
+                    :key="index"
+                  >
+                    <td 
+                      v-for="header in displayHeaders" 
+                      :key="header" 
+                      class="text-break"
+                    >
+                      {{ row[header] }}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <!-- 資料筆數提示 -->
+            <small class="text-muted">
+              顯示前 {{ previewLimit }} 筆資料，共 {{ csvData.length }} 筆
+            </small>
           </div>
-          <small class="text-muted">顯示前 5 筆資料，共 {{ csvData.length }} 筆</small>
         </div>
       </div>
     </div>
@@ -42,115 +97,55 @@
 </template>
 
 <script>
-import { defineComponent } from 'vue'
+import { defineComponent, computed } from 'vue'
+import '@/assets/styles/base.css'
+import '@/assets/styles/control-panel.css'
 
 export default defineComponent({
   name: 'ControlPanel',
+
+  // 組件屬性定義
   props: {
+    // 錯誤訊息
     errorMessage: {
       type: String,
       default: ''
     },
+    // CSV 資料陣列
     csvData: {
       type: Array,
       default: () => []
     },
+    // CSV 標題陣列
     csvHeaders: {
       type: Array,
       default: () => []
     }
   },
-  emits: ['button-click', 'load-csv']
+
+  // 組件事件定義
+  emits: ['button-click', 'load-csv'],
+
+  // 組件邏輯
+  setup(props) {
+    // 過濾掉 WKT 欄位，只顯示其他欄位
+    const displayHeaders = computed(() => {
+      return props.csvHeaders.filter(header => header !== 'WKT')
+    })
+
+    // 預覽資料的筆數限制
+    const previewLimit = 5
+
+    // 預覽資料：只顯示前 N 筆
+    const previewData = computed(() => {
+      return props.csvData.slice(0, previewLimit)
+    })
+
+    return {
+      displayHeaders,
+      previewData,
+      previewLimit
+    }
+  }
 })
-</script>
-
-<style scoped>
-.sidebar {
-  background-color: #f8f9fa;
-  box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
-  z-index: 1000;
-  overflow-y: auto;
-  overflow-x: hidden;
-  flex-shrink: 0;
-  transition: all 0.1s ease;
-}
-
-.sidebar .p-3 {
-  width: 100%;
-  box-sizing: border-box;
-}
-
-.btn-primary {
-  background-color: #0d6efd;
-  border-color: #0d6efd;
-  width: 100%;
-}
-
-.btn-primary:hover {
-  background-color: #0b5ed7;
-  border-color: #0a58ca;
-}
-
-.btn-success {
-  width: 100%;
-}
-
-.csv-data-container {
-  margin-top: 1rem;
-  padding: 0.5rem;
-  background-color: white;
-  border-radius: 0.25rem;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-  width: 100%;
-  box-sizing: border-box;
-}
-
-.table {
-  font-size: 0.875rem;
-  width: 100%;
-  margin-bottom: 0;
-}
-
-.table th {
-  background-color: #f8f9fa;
-  white-space: nowrap;
-  padding: 0.5rem;
-}
-
-.table td {
-  padding: 0.5rem;
-  word-break: break-word;
-}
-
-.alert {
-  margin-top: 1rem;
-  width: 100%;
-  box-sizing: border-box;
-}
-
-/* 確保表格容器不會產生橫向滾動 */
-.table-responsive {
-  width: 100%;
-  margin: 0;
-  padding: 0;
-}
-
-/* 確保所有內容都在容器內 */
-.d-grid {
-  width: 100%;
-  margin: 0;
-  padding: 0;
-}
-
-/* 確保表單開關不會超出容器 */
-.form-check {
-  margin: 0;
-  padding: 0;
-  width: 100%;
-}
-
-.form-check-label {
-  width: 100%;
-  display: block;
-}
-</style> 
+</script> 
