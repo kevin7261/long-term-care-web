@@ -7,7 +7,6 @@
       :zoom="zoom"
       @update:zoom="$emit('update:zoom', $event)"
       :center="center"
-      :bounds="bounds"
       :use-global-leaflet="false"
     >
       <!-- 地圖底圖圖層：OpenStreetMap -->
@@ -16,32 +15,26 @@
         layer-type="base"
         name="OpenStreetMap"
       />
-
-      <!-- 地圖標記點：遍歷所有位置點 -->
-      <l-marker
-        v-for="(point, index) in mapPoints"
-        :key="index"
-        :lat-lng="point.position"
-      >
-        <!-- 標記點彈出框：顯示位置詳細資訊 -->
-        <l-popup>
-          <div>
-            <strong>{{ point.name }}</strong>
-            <small>{{ point.address }}</small>
-            <small>電話：{{ point.phone }}</small>
-            <small>區域：{{ point.district }}</small>
-          </div>
-        </l-popup>
-      </l-marker>
     </l-map>
   </div>
 </template>
 
 <script>
-import { defineComponent } from 'vue'
-import { LMap, LTileLayer, LMarker, LPopup } from "@vue-leaflet/vue-leaflet"
+import { defineComponent, onMounted, ref, computed, watch } from 'vue'
+import { LMap, LTileLayer } from "@vue-leaflet/vue-leaflet"
+import { useMapStore } from '../stores/mapStore'
+import L from 'leaflet'
+import 'leaflet/dist/leaflet.css'
 import '@/assets/styles/base.css'
 import '@/assets/styles/map.css'
+
+// 修復 Leaflet 圖標問題
+delete L.Icon.Default.prototype._getIconUrl
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: require('leaflet/dist/images/marker-icon-2x.png'),
+  iconUrl: require('leaflet/dist/images/marker-icon.png'),
+  shadowUrl: require('leaflet/dist/images/marker-shadow.png'),
+})
 
 export default defineComponent({
   name: 'MapComponent',
@@ -49,9 +42,7 @@ export default defineComponent({
   // 註冊 Leaflet 組件
   components: {
     LMap,      // 地圖容器
-    LTileLayer, // 地圖圖層
-    LMarker,   // 地圖標記
-    LPopup     // 彈出框
+    LTileLayer // 地圖圖層
   },
 
   // 組件屬性定義
@@ -65,42 +56,79 @@ export default defineComponent({
     center: {
       type: Array,
       required: true
-    },
-    // 地圖邊界
-    bounds: {
-      type: Object,
-      default: null
-    },
-    // 地圖標記點資料
-    mapPoints: {
-      type: Array,
-      default: () => []
     }
   },
 
   // 組件事件定義
   emits: ['update:zoom'],
 
-  // 暴露給父組件的方法
-  expose: ['leafletObject']
+  setup() {
+    const mapRef = ref(null)
+    const mapStore = useMapStore()
+    const markers = ref([])
+
+    // 計算屬性：獲取地圖點位
+    const mapPoints = computed(() => mapStore.mapPoints)
+
+    // 清除所有標記
+    const clearMarkers = () => {
+      markers.value.forEach(marker => {
+        if (marker && mapRef.value?.leafletObject) {
+          mapRef.value.leafletObject.removeLayer(marker)
+        }
+      })
+      markers.value = []
+    }
+
+    // 添加標記
+    const addMarkers = () => {
+      if (!mapRef.value?.leafletObject || !mapPoints.value.length) {
+        return
+      }
+
+      console.log('添加標記:', mapPoints.value.length, '個點位')
+
+      mapPoints.value.forEach((point, index) => {
+        // 使用原生 Leaflet API 創建標記
+        const marker = L.marker([point.position.lat, point.position.lng])
+          .bindPopup(`
+            <div>
+              <strong>${point.name}</strong><br>
+              <small>${point.address}</small><br>
+              <small>電話：${point.phone}</small><br>
+              <small>區域：${point.district}</small>
+            </div>
+          `)
+          .addTo(mapRef.value.leafletObject)
+
+        markers.value.push(marker)
+        console.log(`標記 ${index + 1} 已添加:`, point.name, [point.position.lat, point.position.lng])
+      })
+    }
+
+    // 監聽點位變化
+    watch(mapPoints, () => {
+      console.log('點位數據變化，重新添加標記')
+      clearMarkers()
+      addMarkers()
+    })
+
+    onMounted(() => {
+      console.log('地圖組件已掛載')
+      
+      // 等待地圖初始化完成
+      setTimeout(() => {
+        if (mapRef.value?.leafletObject) {
+          console.log('地圖實例準備就緒')
+          addMarkers()
+        }
+      }, 500)
+    })
+
+    return {
+      mapRef,
+      mapPoints
+    }
+  }
 })
-</script>
-
-<style scoped>
-.map-wrapper {
-  flex: 1;
-  position: relative;
-  height: 100%;
-  min-height: 0;
-}
-
-:deep(.leaflet-container) {
-  width: 100%;
-  height: 100%;
-  z-index: 1;
-}
-
-:deep(.leaflet-control-container) {
-  z-index: 2;
-}
-</style> 
+</script> 

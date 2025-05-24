@@ -1,4 +1,17 @@
-/* 地圖容器樣式 */
+/* 地圖外層容器，確保全螢幕 */
+.map-container {
+  display: flex;
+  width: 100vw;
+  height: 100vh;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+.map-container.vertical-layout {
+  flex-direction: column;
+}
+
+/* 地圖包裹層，讓地圖自動填滿 */
 .map-wrapper {
   flex: 1;
   position: relative;
@@ -18,18 +31,37 @@
   z-index: 2;
 }
 
-/* 地圖標記彈出框樣式 */
-.leaflet-popup-content {
-  padding: var(--spacing-sm);
+/* 十字圖標樣式 */
+.crosshair-icon {
+  background: none;
+  border: none;
 }
 
-.leaflet-popup-content strong {
-  display: block;
-  margin-bottom: var(--spacing-xs);
+.crosshair {
+  position: relative;
+  width: 20px;
+  height: 20px;
 }
 
-.leaflet-popup-content small {
-  display: block;
-  color: #666;
-  margin-bottom: var(--spacing-xs);
-} 
+.crosshair::before,
+.crosshair::after {
+  content: '';
+  position: absolute;
+  background-color: red;
+}
+
+.crosshair::before {
+  width: 2px;
+  height: 20px;
+  left: 9px;
+  top: 0;
+}
+
+.crosshair::after {
+  width: 20px;
+  height: 2px;
+  left: 0;
+  top: 9px;
+}
+
+ 

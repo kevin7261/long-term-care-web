@@ -28,4 +28,31 @@
 /* 基礎過渡效果 */
 .transition-all {
   transition: all var(--transition-speed) ease;
+}
+
+html, body, #app {
+  width: 100vw;
+  height: 100vh;
+  margin: 0;
+  padding: 0;
+}
+
+/* 拖拽條樣式 */
+.resizer {
+  background-color: #e0e0e0;
+  cursor: ew-resize;
+  width: 4px;
+  position: relative;
+  z-index: 10;
+  transition: background-color 0.2s ease;
+}
+
+.resizer:hover {
+  background-color: #007bff;
+}
+
+.vertical-resizer {
+  cursor: ns-resize;
+  height: 4px;
+  width: 100%;
 } 

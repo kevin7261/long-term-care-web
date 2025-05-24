@@ -3,7 +3,7 @@
   <div class="sidebar">
     <div class="sidebar-content">
       <!-- 標題區域 -->
-      <h2 class="mb-4">控制面板</h2>
+      <h3 class="title mb-3">台北市長照資源地圖</h3>
 
       <!-- 控制按鈕區域 -->
       <div class="sidebar-buttons">
@@ -148,4 +148,11 @@ export default defineComponent({
     }
   }
 })
-</script> 
+</script>
+
+<style scoped>
+.title {
+  font-size: 1.25rem;
+  font-weight: 500;
+}
+</style> 

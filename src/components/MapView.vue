@@ -4,8 +4,6 @@
       <MapComponent
         v-model:zoom="zoom"
         :center="center"
-        :bounds="mapBounds"
-        :map-points="mapPoints"
         ref="mapRef"
       />
       <div 
@@ -37,8 +35,6 @@
       <MapComponent
         v-model:zoom="zoom"
         :center="center"
-        :bounds="mapBounds"
-        :map-points="mapPoints"
         ref="mapRef"
       />
     </template>
@@ -72,9 +68,7 @@ const crosshairMarker = ref(null)
 // Computed properties
 const csvData = computed(() => mapStore.filteredData)
 const csvHeaders = computed(() => mapStore.csvHeaders)
-const mapPoints = computed(() => mapStore.mapPoints)
 const errorMessage = computed(() => mapStore.errorMessage)
-const mapBounds = computed(() => mapStore.mapBounds)
 
 // Crosshair icon
 const crosshairIcon = L.divIcon({
@@ -173,72 +167,4 @@ onMounted(() => {
 onUnmounted(() => {
   window.removeEventListener('resize', handleResize)
 })
-</script>
-
-<style scoped>
-.map-container {
-  display: flex;
-  width: 100vw;
-  height: 100vh;
-  margin: 0;
-  padding: 0;
-  overflow: hidden;
-}
-
-.map-container.vertical-layout {
-  flex-direction: column;
-}
-
-.resizer {
-  width: 5px;
-  background-color: #dee2e6;
-  cursor: col-resize;
-  flex-shrink: 0;
-  z-index: 1001;
-  transition: background-color 0.2s ease;
-}
-
-.vertical-resizer {
-  width: 100%;
-  height: 5px;
-  cursor: row-resize;
-}
-
-.resizer:hover,
-.vertical-resizer:hover {
-  background-color: #0d6efd;
-}
-
-/* 十字圖標樣式 */
-:deep(.crosshair-icon) {
-  background: none;
-  border: none;
-}
-
-:deep(.crosshair) {
-  position: relative;
-  width: 20px;
-  height: 20px;
-}
-
-:deep(.crosshair::before),
-:deep(.crosshair::after) {
-  content: '';
-  position: absolute;
-  background-color: red;
-}
-
-:deep(.crosshair::before) {
-  width: 2px;
-  height: 20px;
-  left: 9px;
-  top: 0;
-}
-
-:deep(.crosshair::after) {
-  width: 20px;
-  height: 2px;
-  left: 0;
-  top: 9px;
-}
-</style> 
+</script> 
