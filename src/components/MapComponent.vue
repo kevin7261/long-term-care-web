@@ -49,6 +49,7 @@
         :fill-opacity="serviceCircleData.fillOpacity"
         :weight="serviceCircleData.weight"
         :opacity="serviceCircleData.opacity"
+        @contextmenu="handleCircleRightClick"
       >
         <l-popup :opened="serviceCircleData.showPopup">
           <div style="text-align: center; min-width: 150px;">
@@ -80,9 +81,24 @@
       }"
       @click.stop
     >
-      <div class="context-menu-item" @click="addServiceCircle">
+      <!-- 在地圖上右鍵：顯示加入服務範圍 -->
+      <div 
+        v-if="contextMenu.type === 'map'" 
+        class="context-menu-item" 
+        @click="addServiceCircle"
+      >
         <i class="bi bi-plus-circle"></i>
         加入服務範圍
+      </div>
+      
+      <!-- 在服務範圍圓上右鍵：顯示刪除服務範圍 -->
+      <div 
+        v-if="contextMenu.type === 'circle'" 
+        class="context-menu-item context-menu-item-danger" 
+        @click="deleteServiceCircle"
+      >
+        <i class="bi bi-trash3"></i>
+        刪除服務範圍
       </div>
     </div>
 
@@ -218,7 +234,8 @@ export default defineComponent({
       visible: false,
       x: 0,
       y: 0,
-      clickLatLng: null  // 儲存右鍵點擊的座標
+      clickLatLng: null,  // 儲存右鍵點擊的座標
+      type: null  // 區分點擊類型：'map' 或 'circle'
     })
 
     // ------------------------------------------------------------------------
@@ -432,7 +449,41 @@ export default defineComponent({
         visible: true,
         x: e.originalEvent.clientX,
         y: e.originalEvent.clientY,
-        clickLatLng: latlng
+        clickLatLng: latlng,
+        type: 'map'
+      }
+    }
+
+    /**
+     * 處理圓形右鍵點擊事件
+     * @param {MouseEvent} e - 滑鼠事件
+     * @description 顯示刪除服務範圍選單
+     */
+    const handleCircleRightClick = (e) => {
+      console.log('🖱️ 右鍵點擊服務範圍圓')
+      
+      // 手動阻止默認的右鍵選單行為
+      if (e.originalEvent && e.originalEvent.preventDefault) {
+        e.originalEvent.preventDefault()
+      }
+      
+      // 阻止事件冒泡到地圖
+      if (e.originalEvent && e.originalEvent.stopPropagation) {
+        e.originalEvent.stopPropagation()
+      }
+      
+      // 隱藏現有選單
+      hideContextMenu()
+      
+      console.log('顯示刪除服務範圍選單')
+      
+      // 顯示右鍵選單
+      contextMenu.value = {
+        visible: true,
+        x: e.originalEvent.clientX,
+        y: e.originalEvent.clientY,
+        clickLatLng: null,  // 圓形點擊不需要座標
+        type: 'circle'
       }
     }
 
@@ -462,6 +513,25 @@ export default defineComponent({
     }
 
     /**
+     * 刪除服務範圍圓
+     * @description 從地圖上移除當前的服務範圍圓形
+     */
+    const deleteServiceCircle = () => {
+      console.log('🗑️ 從右鍵選單刪除服務範圍圓')
+      
+      // 隱藏選單
+      hideContextMenu()
+      
+      // 使用響應式數據隱藏圓形
+      serviceCircleData.value.visible = false
+      
+      // 清除 store 中的狀態
+      mapStore.clearServiceCircle()
+      
+      console.log('✅ 服務範圍圓已刪除')
+    }
+
+    /**
      * 隱藏右鍵選單
      * @description 隱藏右鍵選單並清除相關狀態
      */
@@ -470,7 +540,8 @@ export default defineComponent({
         visible: false,
         x: 0,
         y: 0,
-        clickLatLng: null
+        clickLatLng: null,
+        type: null
       }
     }
 
@@ -497,7 +568,9 @@ export default defineComponent({
       contextMenu,
       handleRightClick,     // 右鍵點擊處理
       addServiceCircle,     // 加入服務範圍圓
-      hideContextMenu       // 隱藏右鍵選單
+      hideContextMenu,       // 隱藏右鍵選單
+      deleteServiceCircle,   // 刪除服務範圍圓的方法
+      handleCircleRightClick // 處理圓形右鍵點擊事件
     }
   }
 })
@@ -569,5 +642,18 @@ export default defineComponent({
   bottom: 0;
   z-index: 999;
   background: transparent;
+}
+
+.context-menu-item-danger {
+  color: #dc3545;
+}
+
+.context-menu-item-danger:hover {
+  background-color: #f8f9fa;
+  color: #c82333;
+}
+
+.context-menu-item-danger i {
+  color: #dc3545;
 }
 </style> 
