@@ -3,30 +3,10 @@
   <div class="sidebar">
     <div class="sidebar-content">
       <!-- 標題區域 -->
-      <h3 class="title mb-3">長照資源地圖</h3>
+      <h3 class="title mb-3">台北市長照資源地圖</h3>
 
       <!-- 控制按鈕區域 -->
       <div class="sidebar-buttons">
-        <!-- 啟用地圖點擊按鈕：控制是否可以點擊地圖創建服務範圍圓 -->
-        <button 
-          class="btn w-100 mb-3" 
-          :class="mapClickEnabled ? 'btn-danger' : 'btn-primary'"
-          @click="$emit('toggle-map-click')"
-        >
-          <i :class="mapClickEnabled ? 'bi bi-hand-index' : 'bi bi-hand-index-thumb'"></i>
-          {{ mapClickEnabled ? '停用地圖點擊' : '啟用地圖點擊' }}
-        </button>
-
-        <!-- 操作狀態提示 -->
-        <div 
-          v-if="mapClickEnabled" 
-          class="alert alert-success mb-3"
-        >
-          <i class="bi bi-check-circle"></i>
-          <strong>地圖點擊已啟用</strong><br>
-          <small>點擊地圖任意位置創建 5km 服務範圍圓</small>
-        </div>
-
         <!-- 服務範圍圓資訊顯示區域 -->
         <div 
           v-if="serviceCircleInfo.isActive" 
@@ -73,9 +53,9 @@
           </button>
         </div>
 
-        <!-- 操作提示：當沒有服務範圍圓時顯示 -->
+        <!-- 操作提示：使用右鍵選單 -->
         <div 
-          v-else-if="!mapClickEnabled" 
+          v-else 
           class="service-hint mt-3 p-3 border rounded bg-info bg-opacity-10"
         >
           <h6 class="mb-2">
@@ -83,7 +63,7 @@
             操作提示
           </h6>
           <p class="mb-0 small">
-            點擊上方的<strong>「啟用地圖點擊」</strong>按鈕，即可開始在地圖上點擊創建服務範圍圓。
+            在地圖上<strong>按右鍵</strong>，選擇「加入服務範圍」即可創建 2km 服務範圍圓。
           </p>
         </div>
 
@@ -178,16 +158,11 @@ export default defineComponent({
     csvHeaders: {
       type: Array,
       default: () => []
-    },
-    // 是否啟用地圖點擊
-    mapClickEnabled: {
-      type: Boolean,
-      default: false
     }
   },
 
   // 組件事件定義
-  emits: ['load-csv', 'clear-service-circle', 'toggle-map-click'],
+  emits: ['load-csv', 'clear-service-circle'],
 
   // 組件邏輯
   setup(props) {

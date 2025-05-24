@@ -39,7 +39,7 @@ export const useMapStore = defineStore('mapStore', () => {
   const serviceCircleInfo = ref({
     isActive: false,            // 是否有活動的服務範圍圓
     center: null,               // 圓心座標 { lat, lng }
-    radius: 5000,               // 半徑（公尺）
+    radius: 2000,               // 半徑（公尺）- 改為2km
     clickTime: null             // 點擊時間
   })
 
@@ -108,10 +108,10 @@ export const useMapStore = defineStore('mapStore', () => {
   /**
    * 設置服務範圍圓資訊
    * @param {Object} latlng - 點擊位置座標 { lat, lng }
-   * @param {Number} radius - 圓半徑（公尺），預設 5000
+   * @param {Number} radius - 圓半徑（公尺），預設 2000
    * @description 更新服務範圍圓的狀態資訊
    */
-  function setServiceCircle(latlng, radius = 5000) {
+  function setServiceCircle(latlng, radius = 2000) {
     serviceCircleInfo.value = {
       isActive: true,
       center: {
@@ -133,7 +133,7 @@ export const useMapStore = defineStore('mapStore', () => {
     serviceCircleInfo.value = {
       isActive: false,
       center: null,
-      radius: 5000,
+      radius: 2000,  // 改為2km
       clickTime: null
     }
     

@@ -32,11 +32,9 @@
         :error-message="errorMessage"
         :csv-data="csvData"
         :csv-headers="csvHeaders"
-        :map-click-enabled="mapClickEnabled"
         :style="{ height: sidebarHeight + 'px' }"
         @load-csv="loadCSV"
         @clear-service-circle="handleClearServiceCircle"
-        @toggle-map-click="toggleMapClick"
       />
     </template>
     
@@ -47,11 +45,9 @@
         :error-message="errorMessage"
         :csv-data="csvData"
         :csv-headers="csvHeaders"
-        :map-click-enabled="mapClickEnabled"
         :style="{ width: sidebarWidth + 'px' }"
         @load-csv="loadCSV"
         @clear-service-circle="handleClearServiceCircle"
-        @toggle-map-click="toggleMapClick"
       />
       
       <!-- 水平拖拽條 -->
@@ -123,13 +119,11 @@ const windowWidth = ref(window.innerWidth)  // 視窗寬度
  * - center: 地圖中心點 (台北市中心)
  * - mapRef: 地圖組件引用
  * - crosshairMarker: 十字準心標記
- * - mapClickEnabled: 地圖點擊功能是否啟用
  */
 const zoom = ref(13)  // 初始縮放等級
 const center = ref([25.0330, 121.5654])  // 台北市中心座標
 const mapRef = ref(null)           // 地圖組件引用
 const crosshairMarker = ref(null)  // 十字準心標記引用
-const mapClickEnabled = ref(false) // 地圖點擊功能是否啟用
 
 // ============================================================================
 // 計算屬性 - 從 Store 獲取數據
@@ -162,21 +156,6 @@ const crosshairIcon = L.divIcon({
 // ============================================================================
 // 事件處理函數
 // ============================================================================
-
-/**
- * 切換地圖點擊功能
- * @description 啟用或停用地圖點擊創建服務範圍圓的功能
- */
-const toggleMapClick = () => {
-  mapClickEnabled.value = !mapClickEnabled.value
-  
-  console.log('地圖點擊功能：', mapClickEnabled.value ? '已啟用' : '已停用')
-  
-  // 通知地圖組件更新點擊監聽器狀態
-  if (mapRef.value) {
-    mapRef.value.setMapClickEnabled(mapClickEnabled.value)
-  }
-}
 
 /**
  * 載入 CSV 數據

@@ -16,6 +16,7 @@
       - zoom: 地圖縮放等級 (由父組件傳入)
       - center: 地圖中心點座標 (由父組件傳入)
       - use-global-leaflet: 不使用全域 Leaflet 實例
+      - class: 根據點擊功能狀態動態添加游標樣式
     -->
     <l-map
       ref="mapRef"
@@ -23,6 +24,8 @@
       @update:zoom="$emit('update:zoom', $event)"
       :center="center"
       :use-global-leaflet="false"
+      class="leaflet-map"
+      @contextmenu="handleRightClick"
     >
       <!-- 
         地圖底圖圖層：OpenStreetMap
@@ -35,7 +38,60 @@
         layer-type="base"
         name="OpenStreetMap"
       />
+
+      <!-- 服務範圍圓形 -->
+      <l-circle
+        v-if="serviceCircleData.visible"
+        :lat-lng="serviceCircleData.center"
+        :radius="serviceCircleData.radius"
+        :color="serviceCircleData.color"
+        :fill-color="serviceCircleData.fillColor"
+        :fill-opacity="serviceCircleData.fillOpacity"
+        :weight="serviceCircleData.weight"
+        :opacity="serviceCircleData.opacity"
+      >
+        <l-popup :opened="serviceCircleData.showPopup">
+          <div style="text-align: center; min-width: 150px;">
+            <h6 :style="`color: ${serviceCircleData.color}; margin: 0 0 10px 0;`">
+              🎯 服務範圍圓
+            </h6>
+            <div style="font-size: 13px;">
+              <strong>中心座標：</strong><br>
+              <span style="color: #666;">
+                {{ serviceCircleData.center[0]?.toFixed(6) }}, {{ serviceCircleData.center[1]?.toFixed(6) }}
+              </span><br><br>
+              <strong>服務半徑：</strong> 
+              <span style="color: #007bff;">2.0 公里</span><br>
+              <strong>覆蓋面積：</strong> 
+              <span style="color: #28a745;">{{ serviceCircleData.area }} 平方公里</span>
+            </div>
+          </div>
+        </l-popup>
+      </l-circle>
     </l-map>
+
+    <!-- 右鍵選單 -->
+    <div 
+      v-if="contextMenu.visible" 
+      class="context-menu"
+      :style="{
+        left: contextMenu.x + 'px',
+        top: contextMenu.y + 'px'
+      }"
+      @click.stop
+    >
+      <div class="context-menu-item" @click="addServiceCircle">
+        <i class="bi bi-plus-circle"></i>
+        加入服務範圍
+      </div>
+    </div>
+
+    <!-- 右鍵選單背景遮罩（點擊隱藏選單） -->
+    <div 
+      v-if="contextMenu.visible" 
+      class="context-menu-overlay"
+      @click="hideContextMenu"
+    ></div>
   </div>
 </template>
 
@@ -48,7 +104,7 @@
 import { defineComponent, onMounted, ref, computed, watch, defineExpose } from 'vue'
 
 // Vue-Leaflet 組件 (用於地圖容器和圖層)
-import { LMap, LTileLayer } from "@vue-leaflet/vue-leaflet"
+import { LMap, LTileLayer, LCircle, LPopup } from "@vue-leaflet/vue-leaflet"
 
 // Pinia 狀態管理 (地圖數據)
 import { useMapStore } from '../stores/mapStore'
@@ -94,7 +150,9 @@ export default defineComponent({
   // 註冊子組件
   components: {
     LMap,      // Leaflet 地圖容器
-    LTileLayer // Leaflet 圖層 (底圖)
+    LTileLayer, // Leaflet 圖層 (底圖)
+    LCircle,   // Leaflet 圓形組件
+    LPopup      // Leaflet 彈出框組件
   },
 
   // ============================================================================
@@ -142,8 +200,26 @@ export default defineComponent({
     const mapRef = ref(null)      // 地圖組件的引用
     const mapStore = useMapStore() // Pinia 狀態管理實例
     const markers = ref([])       // 存儲所有地圖標記的陣列
-    const serviceCircle = ref(null) // 存儲服務範圍圓形
-    const mapClickEnabled = ref(false) // 地圖點擊功能是否啟用
+    const serviceCircleData = ref({
+      visible: false,
+      center: [0, 0],
+      radius: 2000,  // 2km半徑
+      color: '#ff6b6b',
+      fillColor: '#ff6b6b',
+      fillOpacity: 0.2,
+      weight: 3,
+      opacity: 1,
+      area: 0,
+      showPopup: false  // 控制彈窗是否自動打開
+    })
+
+    // 右鍵選單狀態
+    const contextMenu = ref({
+      visible: false,
+      x: 0,
+      y: 0,
+      clickLatLng: null  // 儲存右鍵點擊的座標
+    })
 
     // ------------------------------------------------------------------------
     // 計算屬性
@@ -224,160 +300,32 @@ export default defineComponent({
      * @description 在點擊位置創建半徑5公里的服務範圍圓
      */
     const createServiceCircle = (latlng) => {
-      console.log('開始創建服務範圍圓：', latlng)
+      console.log('🎯 創建服務範圍圓')
+      console.log('座標：', latlng.lat, latlng.lng)
 
-      // 檢查地圖實例是否準備就緒
-      if (!mapRef.value?.leafletObject) {
-        console.warn('地圖實例未準備就緒，無法創建服務範圍圓')
-        return
+      // 使用響應式數據控制圓形顯示
+      serviceCircleData.value = {
+        visible: true,
+        center: [latlng.lat, latlng.lng],
+        radius: 2000,  // 2km半徑
+        color: '#ff6b6b',
+        fillColor: '#ff6b6b',
+        fillOpacity: 0.2,
+        weight: 3,
+        opacity: 1,
+        area: (Math.PI * 2 * 2).toFixed(2),  // 2km半徑的面積
+        showPopup: true  // 立即顯示彈窗
       }
 
-      // 檢查座標是否有效
-      if (!latlng || typeof latlng.lat !== 'number' || typeof latlng.lng !== 'number') {
-        console.warn('無效的座標數據：', latlng)
-        return
-      }
+      console.log('✅ 圓形已通過響應式數據創建，彈窗已打開')
 
-      const map = mapRef.value.leafletObject
-
-      try {
-        // 移除舊的圓形（如果存在）
-        if (serviceCircle.value) {
-          console.log('移除舊的服務範圍圓')
-          map.removeLayer(serviceCircle.value)
-          serviceCircle.value = null
-        }
-
-        // 確保地圖有有效的視圖和縮放級別
-        if (!map.getZoom() || map.getZoom() < 1) {
-          console.warn('地圖縮放級別無效，設置默認縮放')
-          map.setView(latlng, 13)
-        }
-
-        // 等待地圖完全準備好
+      // 移動地圖到圓形位置以確保可見性
+      const map = mapRef.value?.leafletObject
+      if (map) {
         setTimeout(() => {
-          try {
-            console.log('創建新的服務範圍圓')
-            
-            // 創建圓形選項
-            const circleOptions = {
-              radius: 5000,              // 半徑5公里（單位：公尺）
-              color: '#ff6b6b',          // 邊框顏色：紅色
-              fillColor: '#ff6b6b',      // 填充顏色：紅色
-              fillOpacity: 0.2,          // 填充透明度：20%
-              weight: 2,                 // 邊框寬度：2px
-              opacity: 0.8,              // 邊框透明度：80%
-              interactive: true          // 可互動
-            }
-
-            // 創建圓形
-            serviceCircle.value = L.circle([latlng.lat, latlng.lng], circleOptions)
-            
-            // 檢查圓形是否創建成功
-            if (serviceCircle.value) {
-              // 添加到地圖
-              serviceCircle.value.addTo(map)
-              
-              // 綁定彈出框
-              const popupContent = `
-                <div style="text-align: center;">
-                  <strong>🎯 服務範圍</strong><br>
-                  <small>📍 中心座標：${latlng.lat.toFixed(4)}, ${latlng.lng.toFixed(4)}</small><br>
-                  <small>📏 服務半徑：5 公里</small><br>
-                  <small>📐 覆蓋面積：約 ${(Math.PI * 5 * 5).toFixed(1)} 平方公里</small>
-                </div>
-              `
-              
-              serviceCircle.value.bindPopup(popupContent)
-
-              console.log('✅ 服務範圍圓創建成功：', {
-                中心座標: [latlng.lat, latlng.lng],
-                半徑: '5公里',
-                面積: (Math.PI * 5 * 5).toFixed(1) + '平方公里'
-              })
-
-              // 可選：讓地圖移動到圓形位置
-              // map.setView(latlng, map.getZoom())
-
-            } else {
-              console.error('圓形創建失敗：serviceCircle 為 null')
-            }
-
-          } catch (innerError) {
-            console.error('內部圓形創建錯誤：', innerError)
-            
-            // 嘗試清理
-            if (serviceCircle.value) {
-              try {
-                map.removeLayer(serviceCircle.value)
-              } catch (removeError) {
-                console.error('清理圓形時出錯：', removeError)
-              }
-              serviceCircle.value = null
-            }
-          }
-        }, 200) // 延遲200ms確保地圖準備好
-
-      } catch (error) {
-        console.error('創建服務範圍圓時發生錯誤：', error)
-        // 清理可能的殘留狀態
-        if (serviceCircle.value) {
-          serviceCircle.value = null
-        }
+          map.setView([latlng.lat, latlng.lng], Math.max(map.getZoom(), 12))
+        }, 100)
       }
-    }
-
-    /**
-     * 處理地圖點擊事件
-     * @param {L.LeafletMouseEvent} e - Leaflet 滑鼠事件
-     * @description 當用戶點擊地圖時，在該位置創建服務範圍圓
-     */
-    const handleMapClick = (e) => {
-      console.log('🔥 地圖點擊事件觸發')
-      console.log('地圖點擊狀態：', mapClickEnabled.value)
-      
-      // 檢查地圖點擊功能是否已啟用
-      if (!mapClickEnabled.value) {
-        console.log('⚠️ 地圖點擊功能未啟用，忽略點擊事件')
-        return
-      }
-
-      const { latlng } = e
-      console.log('✅ 地圖被點擊，座標：', [latlng.lat, latlng.lng])
-      
-      // 在點擊位置創建服務範圍圓
-      createServiceCircle(latlng)
-      
-      // 更新 store 中的服務範圍圓資訊
-      mapStore.setServiceCircle(latlng, 5000)
-      
-      console.log('📍 服務範圍圓資訊已更新到 store')
-    }
-
-    /**
-     * 初始化地圖點擊監聽器
-     * @description 為地圖添加點擊事件監聽器
-     */
-    const initMapClickListener = () => {
-      if (!mapRef.value?.leafletObject) {
-        console.warn('地圖實例未準備就緒，無法初始化點擊監聽器')
-        return
-      }
-
-      const map = mapRef.value.leafletObject
-      
-      // 確保地圖完全準備好後再綁定事件
-      map.whenReady(() => {
-        console.log('🎯 初始化地圖點擊監聽器')
-        
-        // 移除可能已存在的點擊事件監聽器
-        map.off('click', handleMapClick)
-        
-        // 綁定地圖點擊事件
-        map.on('click', handleMapClick)
-        
-        console.log('✅ 地圖點擊功能監聽器已綁定 - 等待用戶啟用功能')
-      })
     }
 
     /**
@@ -385,36 +333,15 @@ export default defineComponent({
      * @description 從地圖上移除當前的服務範圍圓形
      */
     const clearServiceCircle = () => {
-      if (serviceCircle.value && mapRef.value?.leafletObject) {
-        console.log('清除服務範圍圓')
-        
-        // 從地圖中移除圓形
-        mapRef.value.leafletObject.removeLayer(serviceCircle.value)
-        
-        // 清空引用
-        serviceCircle.value = null
-        
-        // 清除 store 中的狀態
-        mapStore.clearServiceCircle()
-        
-        console.log('✅ 服務範圍圓已清除')
-      }
-    }
-
-    /**
-     * 設置地圖點擊功能狀態
-     * @param {boolean} enabled - 是否啟用地圖點擊功能
-     * @description 控制是否可以點擊地圖創建服務範圍圓
-     */
-    const setMapClickEnabled = (enabled) => {
-      mapClickEnabled.value = enabled
-      console.log('🎛️ 地圖點擊功能已', enabled ? '✅ 啟用' : '❌ 停用')
+      console.log('🗑️ 清除服務範圍圓')
       
-      if (enabled) {
-        console.log('💡 提示：現在可以點擊地圖任意位置創建5km服務範圍圓')
-      } else {
-        console.log('💡 提示：地圖點擊功能已關閉')
-      }
+      // 使用響應式數據隱藏圓形
+      serviceCircleData.value.visible = false
+      
+      // 清除 store 中的狀態
+      mapStore.clearServiceCircle()
+      
+      console.log('✅ 服務範圍圓已清除')
     }
 
     // ------------------------------------------------------------------------
@@ -437,46 +364,115 @@ export default defineComponent({
     
     /**
      * 組件掛載完成
-     * @description 等待地圖初始化後添加標記和點擊監聽器
+     * @description 等待地圖初始化後添加標記
      */
     onMounted(() => {
-      console.log('地圖組件已掛載')
+      console.log('🚀 地圖組件已掛載，等待地圖初始化...')
       
-      /**
-       * 等待地圖完全初始化的函數
-       * @description 遞歸檢查地圖是否準備就緒
-       */
-      const waitForMapReady = () => {
+      // 使用更可靠的方式等待地圖準備
+      const waitForMap = () => {
         if (mapRef.value?.leafletObject) {
+          console.log('✅ 地圖實例已準備，開始初始化功能...')
+          
           const map = mapRef.value.leafletObject
           
-          // 檢查地圖是否已經有有效的尺寸
-          if (map.getContainer() && map.getSize() && map.getSize().x > 0) {
-            console.log('地圖實例準備就緒')
+          // 確保地圖容器有效
+          map.whenReady(() => {
+            console.log('🗺️ 地圖完全準備就緒')
             
-            // 使用 whenReady 確保地圖完全準備好
-            map.whenReady(() => {
-              // 添加醫療院所標記
-              addMarkers()
-              
-              // 初始化地圖點擊監聽器
-              initMapClickListener()
-              
-              console.log('✅ 地圖初始化完成')
-            })
-          } else {
-            // 地圖尺寸還沒有準備好，繼續等待
-            setTimeout(waitForMapReady, 100)
-          }
+            // 添加醫療院所標記
+            addMarkers()
+            
+            console.log('🎉 地圖初始化完成！')
+          })
         } else {
-          // 地圖實例還沒有創建，繼續等待
-          setTimeout(waitForMapReady, 100)
+          console.log('⏳ 等待地圖實例準備...')
+          setTimeout(waitForMap, 200)
         }
       }
       
       // 開始等待地圖準備
-      waitForMapReady()
+      waitForMap()
     })
+
+    // ------------------------------------------------------------------------
+    // 右鍵選單處理
+    // ------------------------------------------------------------------------
+
+    /**
+     * 處理右鍵點擊事件
+     * @param {MouseEvent} e - 滑鼠事件
+     * @description 顯示右鍵選單
+     */
+    const handleRightClick = (e) => {
+      console.log('🖱️ 右鍵點擊地圖')
+      
+      // 手動阻止默認的右鍵選單行為
+      if (e.originalEvent && e.originalEvent.preventDefault) {
+        e.originalEvent.preventDefault()
+      }
+      
+      // 隱藏現有選單
+      hideContextMenu()
+      
+      // 獲取地圖實例
+      const map = mapRef.value?.leafletObject
+      if (!map) return
+      
+      // 獲取滑鼠位置相對於地圖容器的座標
+      const containerPoint = map.mouseEventToContainerPoint(e.originalEvent)
+      
+      // 獲取地理座標
+      const latlng = map.containerPointToLatLng(containerPoint)
+      
+      console.log('右鍵點擊座標：', latlng)
+      
+      // 顯示右鍵選單
+      contextMenu.value = {
+        visible: true,
+        x: e.originalEvent.clientX,
+        y: e.originalEvent.clientY,
+        clickLatLng: latlng
+      }
+    }
+
+    /**
+     * 加入服務範圍圓
+     * @description 在右鍵點擊位置創建服務範圍圓
+     */
+    const addServiceCircle = () => {
+      console.log('🎯 從右鍵選單創建服務範圍圓')
+      
+      const latlng = contextMenu.value.clickLatLng
+      if (!latlng) {
+        console.error('❌ 無法獲取右鍵點擊座標')
+        return
+      }
+      
+      // 隱藏選單
+      hideContextMenu()
+      
+      // 在點擊位置創建服務範圍圓
+      createServiceCircle(latlng)
+      
+      // 更新 store 中的服務範圍圓資訊
+      mapStore.setServiceCircle(latlng, 2000)  // 2km半徑
+      
+      console.log('✅ 服務範圍圓已從右鍵選單創建')
+    }
+
+    /**
+     * 隱藏右鍵選單
+     * @description 隱藏右鍵選單並清除相關狀態
+     */
+    const hideContextMenu = () => {
+      contextMenu.value = {
+        visible: false,
+        x: 0,
+        y: 0,
+        clickLatLng: null
+      }
+    }
 
     // ------------------------------------------------------------------------
     // 暴露給父組件的方法
@@ -487,8 +483,7 @@ export default defineComponent({
      * @description 使用 defineExpose 將內部方法暴露，讓父組件可以直接調用
      */
     defineExpose({
-      clearServiceCircle,  // 清除服務範圍圓的方法
-      setMapClickEnabled   // 設置地圖點擊功能狀態的方法
+      clearServiceCircle   // 清除服務範圍圓的方法
     })
 
     // ------------------------------------------------------------------------
@@ -498,8 +493,81 @@ export default defineComponent({
       mapRef,               // 地圖組件引用
       mapPoints,            // 點位數據 (用於模板調試)
       clearServiceCircle,   // 清除服務範圍圓的方法
-      setMapClickEnabled    // 設置地圖點擊功能狀態的方法
+      serviceCircleData,
+      contextMenu,
+      handleRightClick,     // 右鍵點擊處理
+      addServiceCircle,     // 加入服務範圍圓
+      hideContextMenu       // 隱藏右鍵選單
     }
   }
 })
-</script> 
+</script>
+
+<style scoped>
+/* ============================================================================
+   地圖容器樣式
+   ============================================================================ */
+
+.map-wrapper {
+  width: 100%;
+  height: 100%;
+  position: relative;
+}
+
+.leaflet-map {
+  width: 100%;
+  height: 100%;
+  cursor: default; /* 預設游標 */
+  transition: cursor 0.2s ease; /* 平滑過渡效果 */
+}
+
+/* ============================================================================
+   右鍵選單樣式
+   ============================================================================ */
+
+.context-menu {
+  position: fixed;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
+  min-width: 180px;
+  overflow: hidden;
+}
+
+.context-menu-item {
+  padding: 12px 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: #333;
+  border-bottom: 1px solid #f0f0f0;
+  transition: background-color 0.2s ease;
+}
+
+.context-menu-item:hover {
+  background-color: #f8f9fa;
+}
+
+.context-menu-item:last-child {
+  border-bottom: none;
+}
+
+.context-menu-item i {
+  color: #007bff;
+  font-size: 16px;
+}
+
+.context-menu-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 999;
+  background: transparent;
+}
+</style> 
