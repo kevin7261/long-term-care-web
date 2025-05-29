@@ -76,4 +76,63 @@
   min-width: 0; /* 防止內容溢出 */
   margin: 0;
   padding: 0;
+}
+
+/* GeoJSON 統計資訊樣式 */
+.geojson-stats {
+  border-color: #007bff !important;
+  background-color: rgba(0, 123, 255, 0.05) !important;
+}
+
+.geojson-stats h6 {
+  color: #007bff;
+  font-weight: 600;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.stat-item {
+  text-align: center;
+  padding: 8px;
+  background: white;
+  border-radius: 4px;
+  border: 1px solid #e9ecef;
+}
+
+.stat-value {
+  font-weight: bold;
+  font-size: 0.9rem;
+  margin-top: 2px;
+}
+
+/* 色票說明樣式 */
+.color-legend {
+  text-align: center;
+}
+
+.color-bar {
+  height: 20px;
+  background: linear-gradient(
+    to right,
+    rgb(68, 1, 84),      /* 深紫色 */
+    rgb(59, 82, 139),    /* 深藍色 */
+    rgb(33, 144, 140),   /* 青綠色 */
+    rgb(93, 201, 99),    /* 綠色 */
+    rgb(253, 231, 37)    /* 黃色 */
+  );
+  border-radius: 10px;
+  border: 1px solid #ddd;
+  margin-bottom: 5px;
+}
+
+.color-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8rem;
+  color: #666;
 } 

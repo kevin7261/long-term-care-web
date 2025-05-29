@@ -5,6 +5,7 @@
 /**
  * 功能說明：
  * - 管理 CSV 數據的載入和解析
+ * - 管理 GeoJSON 數據的載入和顏色繪製
  * - 處理 WKT 地理座標格式轉換
  * - 篩選和管理醫療院所點位數據
  * - 提供響應式的地圖數據給組件使用
@@ -34,6 +35,16 @@ export const useMapStore = defineStore('mapStore', () => {
   const filteredData = ref([])  // 篩選後的數據 (符合條件的醫療院所)
   const mapPoints = ref([])     // 處理後的地圖點位數據
   const errorMessage = ref('')  // 錯誤訊息
+
+  // GeoJSON 相關狀態
+  const geoJsonData = ref(null)     // GeoJSON 數據
+  const geoJsonLayers = ref([])     // GeoJSON 圖層數據
+  const colorField = ref('中位數')   // 用於顏色繪製的欄位
+  const colorStats = ref({          // 顏色統計資訊
+    min: 0,
+    max: 0,
+    mean: 0
+  })
 
   // 服務範圍圓資訊
   const serviceCircleInfo = ref({
@@ -101,6 +112,60 @@ export const useMapStore = defineStore('mapStore', () => {
     }
   }
 
+  /**
+   * Viridis 色票函數
+   * @param {number} t - 0到1之間的數值
+   * @returns {string} - RGB 顏色字串
+   */
+  function viridis(t) {
+    // Viridis 色票的 RGB 值 (簡化版本)
+    const colors = [
+      [68, 1, 84],      // 深紫色 (0.0)
+      [59, 82, 139],    // 深藍色 (0.2)
+      [33, 144, 140],   // 青綠色 (0.4)
+      [93, 201, 99],    // 綠色 (0.6)
+      [253, 231, 37]    // 黃色 (1.0)
+    ];
+    
+    // 確保 t 在 0-1 範圍內
+    t = Math.max(0, Math.min(1, t));
+    
+    // 計算在色票中的位置
+    const index = t * (colors.length - 1);
+    const i = Math.floor(index);
+    const f = index - i;
+    
+    // 如果在最後一個顏色
+    if (i >= colors.length - 1) {
+      const color = colors[colors.length - 1];
+      return `rgb(${color[0]}, ${color[1]}, ${color[2]})`;
+    }
+    
+    // 線性插值計算顏色
+    const c1 = colors[i];
+    const c2 = colors[i + 1];
+    
+    const r = Math.round(c1[0] + f * (c2[0] - c1[0]));
+    const g = Math.round(c1[1] + f * (c2[1] - c1[1]));
+    const b = Math.round(c1[2] + f * (c2[2] - c1[2]));
+    
+    return `rgb(${r}, ${g}, ${b})`;
+  }
+
+  /**
+   * 根據數值計算顏色
+   * @param {number} value - 數值
+   * @param {number} min - 最小值
+   * @param {number} max - 最大值
+   * @returns {string} - 顏色字串
+   */
+  function getColorForValue(value, min, max) {
+    if (max === min) return viridis(0.5); // 避免除以零
+    
+    const normalized = (value - min) / (max - min);
+    return viridis(normalized);
+  }
+
   // --------------------------------------------------------------------------
   // 服務範圍圓管理函數
   // --------------------------------------------------------------------------
@@ -166,11 +231,23 @@ export const useMapStore = defineStore('mapStore', () => {
       
       console.log('開始載入 CSV 檔案...')
       
-      const response = await fetch('data/112年12月醫療院所分布圖_全國.csv')
+      // 修復路徑問題：使用 process.env.BASE_URL 來處理 publicPath
+      // 在開發環境中 BASE_URL 是 '/'，在生產環境中是 '/long-term-care-web/'
+      const baseUrl = process.env.BASE_URL || '/'
+      const csvPath = `${baseUrl}data/112年12月醫療院所分布圖_全國.csv`
+      console.log('BASE_URL：', baseUrl)
+      console.log('CSV 檔案路徑：', csvPath)
+      
+      const response = await fetch(csvPath)
       
       // 檢查 HTTP 回應狀態
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
+        console.error('載入 CSV 失敗：', {
+          url: csvPath,
+          status: response.status,
+          statusText: response.statusText
+        })
+        throw new Error(`HTTP error! status: ${response.status} - 無法載入 CSV 檔案`)
       }
       
       const csvText = await response.text()
@@ -300,6 +377,155 @@ export const useMapStore = defineStore('mapStore', () => {
     }
   }
 
+  /**
+   * 載入和處理 GeoJSON 檔案
+   * 
+   * 處理流程：
+   * 1. 從 public/data 目錄載入 GeoJSON 檔案
+   * 2. 解析 GeoJSON 內容
+   * 3. 計算指定欄位的統計資訊
+   * 4. 為每個 feature 計算顏色
+   * 5. 更新 store 中的 GeoJSON 數據
+   */
+  async function loadGeoJSON(filename = '臺北市_村里_綜稅綜合所得總額.geojson') {
+    // 重置錯誤訊息
+    errorMessage.value = ''
+    
+    try {
+      console.log('開始載入 GeoJSON 檔案：', filename)
+      
+      // 構建檔案路徑
+      const baseUrl = process.env.BASE_URL || '/'
+      const geoJsonPath = `${baseUrl}data/${filename}`
+      console.log('GeoJSON 檔案路徑：', geoJsonPath)
+      
+      // 載入檔案
+      const response = await fetch(geoJsonPath)
+      
+      if (!response.ok) {
+        console.error('載入 GeoJSON 失敗：', {
+          url: geoJsonPath,
+          status: response.status,
+          statusText: response.statusText
+        })
+        throw new Error(`HTTP error! status: ${response.status} - 無法載入 GeoJSON 檔案`)
+      }
+      
+      const geoJsonText = await response.text()
+      const geoJson = JSON.parse(geoJsonText)
+      
+      console.log('GeoJSON 檔案載入成功：')
+      console.log('- Feature 數量：', geoJson.features?.length || 0)
+      
+      // 驗證 GeoJSON 格式
+      if (!geoJson.type || geoJson.type !== 'FeatureCollection') {
+        throw new Error('無效的 GeoJSON 格式：必須是 FeatureCollection')
+      }
+      
+      if (!geoJson.features || !Array.isArray(geoJson.features)) {
+        throw new Error('無效的 GeoJSON 格式：缺少 features 陣列')
+      }
+      
+      // 計算指定欄位的統計資訊
+      const values = geoJson.features
+        .map(feature => feature.properties?.[colorField.value])
+        .filter(value => typeof value === 'number' && !isNaN(value))
+      
+      if (values.length === 0) {
+        throw new Error(`找不到有效的 "${colorField.value}" 欄位數據`)
+      }
+      
+      const min = Math.min(...values)
+      const max = Math.max(...values)
+      const mean = values.reduce((sum, val) => sum + val, 0) / values.length
+      
+      // 更新統計資訊
+      colorStats.value = { min, max, mean }
+      
+      console.log('顏色統計資訊：', {
+        欄位: colorField.value,
+        最小值: min.toLocaleString(),
+        最大值: max.toLocaleString(),
+        平均值: Math.round(mean).toLocaleString(),
+        有效數據: values.length
+      })
+      
+      // 為每個 feature 計算顏色和樣式
+      const processedLayers = geoJson.features.map(feature => {
+        const value = feature.properties?.[colorField.value]
+        const color = typeof value === 'number' && !isNaN(value) 
+          ? getColorForValue(value, min, max)
+          : '#cccccc' // 預設灰色
+        
+        return {
+          feature: feature,
+          style: {
+            fillColor: color,
+            fillOpacity: 0.6,
+            color: '#ffffff',
+            weight: 1,
+            opacity: 0.8
+          },
+          popupContent: createPopupContent(feature.properties, value)
+        }
+      })
+      
+      // 更新 store 狀態
+      geoJsonData.value = geoJson
+      geoJsonLayers.value = processedLayers
+      
+      console.log('✅ GeoJSON 處理完成，共', processedLayers.length, '個圖層')
+      
+      const message = `成功載入 ${processedLayers.length} 個村里的所得資料`
+      alert(message)
+      
+    } catch (error) {
+      console.error('載入 GeoJSON 時出錯：', error)
+      errorMessage.value = '載入 GeoJSON 時出錯：' + error.message
+    }
+  }
+
+  /**
+   * 創建彈出視窗內容
+   * @param {Object} properties - Feature 的屬性
+   * @param {number} colorValue - 用於顏色的數值
+   * @returns {string} - HTML 內容
+   */
+  function createPopupContent(properties, colorValue) {
+    const formatNumber = (num) => {
+      return typeof num === 'number' ? num.toLocaleString() : '無資料'
+    }
+    
+    return `
+      <div style="min-width: 200px; font-family: 'Microsoft JhengHei', sans-serif;">
+        <h6 style="margin: 0 0 10px 0; color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 5px;">
+          📍 ${properties.村里名稱 || '未知村里'}
+        </h6>
+        <div style="font-size: 13px; line-height: 1.6;">
+          <div style="margin-bottom: 8px;">
+            <strong>行政區：</strong> ${properties.區域 || '未知'}
+          </div>
+          <div style="margin-bottom: 8px;">
+            <strong>所得中位數：</strong> 
+            <span style="color: #e74c3c; font-weight: bold;">
+              NT$ ${formatNumber(colorValue)}
+            </span>
+          </div>
+          ${properties.平均數 ? `
+            <div style="margin-bottom: 8px;">
+              <strong>所得平均數：</strong> NT$ ${formatNumber(properties.平均數)}
+            </div>
+          ` : ''}
+          ${properties.申報戶數 ? `
+            <div style="margin-bottom: 8px;">
+              <strong>申報戶數：</strong> ${formatNumber(properties.申報戶數)} 戶
+            </div>
+          ` : ''}
+        </div>
+      </div>
+    `
+  }
+
   // --------------------------------------------------------------------------
   // 返回 Store 的公開介面
   // --------------------------------------------------------------------------
@@ -313,9 +539,16 @@ export const useMapStore = defineStore('mapStore', () => {
     errorMessage,        // 錯誤訊息
     serviceCircleInfo,   // 服務範圍圓資訊
     
+    // GeoJSON 相關數據
+    geoJsonData,         // GeoJSON 數據
+    geoJsonLayers,       // GeoJSON 圖層數據
+    colorField,          // 用於顏色繪製的欄位
+    geoJsonStats: colorStats,  // GeoJSON 統計資訊 (重新命名以符合組件使用)
+    
     // 方法函數
     loadCSV,             // 載入 CSV 檔案的方法
     setServiceCircle,    // 設置服務範圍圓資訊
-    clearServiceCircle   // 清除服務範圍圓資訊
+    clearServiceCircle,  // 清除服務範圍圓資訊
+    loadGeoJSON          // 載入 GeoJSON 檔案的方法
   }
 }) 

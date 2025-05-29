@@ -75,12 +75,61 @@
           <i class="bi bi-file-earmark-spreadsheet"></i> 讀取 CSV
         </button>
 
+        <!-- GeoJSON 載入按鈕：點擊時觸發 load-geojson 事件 -->
+        <button 
+          class="btn btn-primary w-100 mt-2" 
+          @click="$emit('load-geojson')"
+        >
+          <i class="bi bi-map"></i> 讀取村里所得資料
+        </button>
+
         <!-- 錯誤訊息顯示區域：當有錯誤時顯示 -->
         <div 
           v-if="errorMessage" 
           class="alert alert-danger mt-3 mb-0"
         >
           {{ errorMessage }}
+        </div>
+
+        <!-- GeoJSON 統計資訊顯示 -->
+        <div 
+          v-if="geoJsonStats && geoJsonStats.min !== geoJsonStats.max" 
+          class="geojson-stats mt-3 p-3 border rounded bg-light"
+        >
+          <h6 class="mb-2">
+            <i class="bi bi-bar-chart text-primary"></i> 
+            所得統計資訊
+          </h6>
+          <div class="stats-grid">
+            <div class="stat-item">
+              <small class="text-muted">最低</small>
+              <div class="stat-value text-success">
+                NT$ {{ formatNumber(geoJsonStats.min) }}
+              </div>
+            </div>
+            <div class="stat-item">
+              <small class="text-muted">平均</small>
+              <div class="stat-value text-info">
+                NT$ {{ formatNumber(Math.round(geoJsonStats.mean)) }}
+              </div>
+            </div>
+            <div class="stat-item">
+              <small class="text-muted">最高</small>
+              <div class="stat-value text-warning">
+                NT$ {{ formatNumber(geoJsonStats.max) }}
+              </div>
+            </div>
+          </div>
+          
+          <!-- 色票說明 -->
+          <div class="color-legend mt-3">
+            <small class="text-muted d-block mb-2">Viridis 色票：</small>
+            <div class="color-bar"></div>
+            <div class="color-labels">
+              <small>低</small>
+              <small>高</small>
+            </div>
+          </div>
         </div>
 
         <!-- CSV 資料預覽區域：當有資料時顯示 -->
@@ -162,7 +211,7 @@ export default defineComponent({
   },
 
   // 組件事件定義
-  emits: ['load-csv', 'clear-service-circle'],
+  emits: ['load-csv', 'clear-service-circle', 'load-geojson'],
 
   // 組件邏輯
   setup(props) {
@@ -194,12 +243,22 @@ export default defineComponent({
       return area.toFixed(2)
     })
 
+    // 獲取 GeoJSON 統計資訊
+    const geoJsonStats = computed(() => mapStore.geoJsonStats)
+
+    // 格式化數字
+    const formatNumber = (value) => {
+      return value.toLocaleString()
+    }
+
     return {
       displayHeaders,
       previewData,
       previewLimit,
       serviceCircleInfo,
-      serviceAreaKm2
+      serviceAreaKm2,
+      geoJsonStats,
+      formatNumber
     }
   }
 })

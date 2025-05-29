@@ -25,7 +25,7 @@
       :center="center"
       :use-global-leaflet="false"
       class="leaflet-map"
-      @contextmenu="handleRightClick"
+      @contextmenu="handleMapRightClick"
     >
       <!-- 
         地圖底圖圖層：OpenStreetMap
@@ -69,6 +69,37 @@
           </div>
         </l-popup>
       </l-circle>
+
+      <!-- CSV 點位（用 Vue-Leaflet l-marker 呈現） -->
+      <l-marker
+        v-for="(point, idx) in mapPoints"
+        :key="'marker-' + idx"
+        :lat-lng="[point.position.lat, point.position.lng]"
+        :z-index-offset="1000"
+      >
+        <l-popup>
+          <strong>{{ point.name }}</strong><br>
+          <small>{{ point.address }}</small><br>
+          <small>電話：{{ point.phone }}</small><br>
+          <small>區域：{{ point.district }}</small>
+        </l-popup>
+      </l-marker>
+
+      <!-- GeoJSON 圖層 -->
+      <template v-if="geoJsonLayers && geoJsonLayers.length > 0">
+        <l-geo-json
+          v-for="(layer, index) in geoJsonLayers"
+          :key="`geojson-${index}`"
+          :geojson="layer.feature"
+          :options="geoJsonOptions"
+          :options-style="layer.style"
+          @click="handleGeoJsonClick"
+        >
+          <l-popup>
+            <div v-html="layer.popupContent"></div>
+          </l-popup>
+        </l-geo-json>
+      </template>
     </l-map>
 
     <!-- 右鍵選單 -->
@@ -117,10 +148,10 @@
 // ============================================================================
 
 // Vue 3 Composition API
-import { defineComponent, onMounted, ref, computed, watch, defineExpose } from 'vue'
+import { defineComponent, ref, computed, nextTick } from 'vue'
 
 // Vue-Leaflet 組件 (用於地圖容器和圖層)
-import { LMap, LTileLayer, LCircle, LPopup } from "@vue-leaflet/vue-leaflet"
+import { LMap, LTileLayer, LCircle, LPopup, LGeoJson, LMarker } from "@vue-leaflet/vue-leaflet"
 
 // Pinia 狀態管理 (地圖數據)
 import { useMapStore } from '../stores/mapStore'
@@ -168,7 +199,9 @@ export default defineComponent({
     LMap,      // Leaflet 地圖容器
     LTileLayer, // Leaflet 圖層 (底圖)
     LCircle,   // Leaflet 圓形組件
-    LPopup      // Leaflet 彈出框組件
+    LPopup,    // Leaflet 彈出框組件
+    LGeoJson,  // Leaflet GeoJSON 組件
+    LMarker    // Leaflet 標記組件
   },
 
   // ============================================================================
@@ -215,7 +248,17 @@ export default defineComponent({
     
     const mapRef = ref(null)      // 地圖組件的引用
     const mapStore = useMapStore() // Pinia 狀態管理實例
-    const markers = ref([])       // 存儲所有地圖標記的陣列
+
+    // 右鍵選單狀態
+    const contextMenu = ref({
+      visible: false,
+      x: 0,
+      y: 0,
+      clickLatLng: null,  // 儲存右鍵點擊的座標
+      type: null  // 區分點擊類型：'map' 或 'circle'
+    })
+
+    // 服務範圍圓形狀態
     const serviceCircleData = ref({
       visible: false,
       center: [0, 0],
@@ -229,15 +272,6 @@ export default defineComponent({
       showPopup: false  // 控制彈窗是否自動打開
     })
 
-    // 右鍵選單狀態
-    const contextMenu = ref({
-      visible: false,
-      x: 0,
-      y: 0,
-      clickLatLng: null,  // 儲存右鍵點擊的座標
-      type: null  // 區分點擊類型：'map' 或 'circle'
-    })
-
     // ------------------------------------------------------------------------
     // 計算屬性
     // ------------------------------------------------------------------------
@@ -247,170 +281,7 @@ export default defineComponent({
      * @description 從 store 中獲取醫療院所的點位資訊
      */
     const mapPoints = computed(() => mapStore.mapPoints)
-
-    // ------------------------------------------------------------------------
-    // 標記管理方法
-    // ------------------------------------------------------------------------
-    
-    /**
-     * 清除所有地圖標記
-     * @description 移除地圖上的所有標記點，避免重複顯示
-     */
-    const clearMarkers = () => {
-      markers.value.forEach(marker => {
-        // 檢查標記和地圖實例是否存在
-        if (marker && mapRef.value?.leafletObject) {
-          // 從地圖中移除標記
-          mapRef.value.leafletObject.removeLayer(marker)
-        }
-      })
-      // 清空標記陣列
-      markers.value = []
-    }
-
-    /**
-     * 添加地圖標記
-     * @description 根據點位數據在地圖上創建標記點
-     */
-    const addMarkers = () => {
-      // 檢查地圖實例和數據是否準備就緒
-      if (!mapRef.value?.leafletObject || !mapPoints.value.length) {
-        return
-      }
-
-      console.log('添加標記:', mapPoints.value.length, '個點位')
-
-      // 遍歷所有點位數據，創建標記
-      mapPoints.value.forEach((point, index) => {
-        /**
-         * 使用原生 Leaflet API 創建標記
-         * 優點：
-         * - 更穩定可靠
-         * - 完全支援 Leaflet 的所有功能
-         * - 避免 Vue 組件層的潛在問題
-         */
-        const marker = L.marker([point.position.lat, point.position.lng])
-          .bindPopup(`
-            <div>
-              <strong>${point.name}</strong><br>
-              <small>${point.address}</small><br>
-              <small>電話：${point.phone}</small><br>
-              <small>區域：${point.district}</small>
-            </div>
-          `)
-          .addTo(mapRef.value.leafletObject)
-
-        // 將標記加入管理陣列
-        markers.value.push(marker)
-        
-        console.log(`標記 ${index + 1} 已添加:`, point.name, [point.position.lat, point.position.lng])
-      })
-    }
-
-    // ------------------------------------------------------------------------
-    // 服務範圍圓形管理
-    // ------------------------------------------------------------------------
-
-    /**
-     * 創建服務範圍圓形
-     * @param {L.LatLng} latlng - 點擊位置的座標
-     * @description 在點擊位置創建半徑5公里的服務範圍圓
-     */
-    const createServiceCircle = (latlng) => {
-      console.log('🎯 創建服務範圍圓')
-      console.log('座標：', latlng.lat, latlng.lng)
-
-      // 使用響應式數據控制圓形顯示
-      serviceCircleData.value = {
-        visible: true,
-        center: [latlng.lat, latlng.lng],
-        radius: 2000,  // 2km半徑
-        color: '#ff6b6b',
-        fillColor: '#ff6b6b',
-        fillOpacity: 0.2,
-        weight: 3,
-        opacity: 1,
-        area: (Math.PI * 2 * 2).toFixed(2),  // 2km半徑的面積
-        showPopup: true  // 立即顯示彈窗
-      }
-
-      console.log('✅ 圓形已通過響應式數據創建，彈窗已打開')
-
-      // 移動地圖到圓形位置以確保可見性
-      const map = mapRef.value?.leafletObject
-      if (map) {
-        setTimeout(() => {
-          map.setView([latlng.lat, latlng.lng], Math.max(map.getZoom(), 12))
-        }, 100)
-      }
-    }
-
-    /**
-     * 清除服務範圍圓
-     * @description 從地圖上移除當前的服務範圍圓形
-     */
-    const clearServiceCircle = () => {
-      console.log('🗑️ 清除服務範圍圓')
-      
-      // 使用響應式數據隱藏圓形
-      serviceCircleData.value.visible = false
-      
-      // 清除 store 中的狀態
-      mapStore.clearServiceCircle()
-      
-      console.log('✅ 服務範圍圓已清除')
-    }
-
-    // ------------------------------------------------------------------------
-    // 數據監聽
-    // ------------------------------------------------------------------------
-    
-    /**
-     * 監聽點位數據變化
-     * @description 當 store 中的點位數據更新時，重新渲染標記
-     */
-    watch(mapPoints, () => {
-      console.log('點位數據變化，重新添加標記')
-      clearMarkers() // 先清除舊標記
-      addMarkers()   // 再添加新標記
-    })
-
-    // ------------------------------------------------------------------------
-    // 生命週期鉤子
-    // ------------------------------------------------------------------------
-    
-    /**
-     * 組件掛載完成
-     * @description 等待地圖初始化後添加標記
-     */
-    onMounted(() => {
-      console.log('🚀 地圖組件已掛載，等待地圖初始化...')
-      
-      // 使用更可靠的方式等待地圖準備
-      const waitForMap = () => {
-        if (mapRef.value?.leafletObject) {
-          console.log('✅ 地圖實例已準備，開始初始化功能...')
-          
-          const map = mapRef.value.leafletObject
-          
-          // 確保地圖容器有效
-          map.whenReady(() => {
-            console.log('🗺️ 地圖完全準備就緒')
-            
-            // 添加醫療院所標記
-            addMarkers()
-            
-            console.log('🎉 地圖初始化完成！')
-          })
-        } else {
-          console.log('⏳ 等待地圖實例準備...')
-          setTimeout(waitForMap, 200)
-        }
-      }
-      
-      // 開始等待地圖準備
-      waitForMap()
-    })
+    const geoJsonLayers = computed(() => mapStore.geoJsonLayers)
 
     // ------------------------------------------------------------------------
     // 右鍵選單處理
@@ -421,37 +292,23 @@ export default defineComponent({
      * @param {MouseEvent} e - 滑鼠事件
      * @description 顯示右鍵選單
      */
-    const handleRightClick = (e) => {
-      console.log('🖱️ 右鍵點擊地圖')
-      
-      // 手動阻止默認的右鍵選單行為
-      if (e.originalEvent && e.originalEvent.preventDefault) {
-        e.originalEvent.preventDefault()
-      }
+    const handleMapRightClick = (e) => {
+      console.log('地圖右鍵點擊：', e.latlng)
       
       // 隱藏現有選單
-      hideContextMenu()
+      contextMenu.value.visible = false
       
-      // 獲取地圖實例
-      const map = mapRef.value?.leafletObject
-      if (!map) return
+      // 計算選單位置
+      const containerPoint = e.containerPoint
+      contextMenu.value.x = containerPoint.x
+      contextMenu.value.y = containerPoint.y
+      contextMenu.value.latlng = e.latlng
+      contextMenu.value.type = 'map'  // 設定為地圖點擊類型
       
-      // 獲取滑鼠位置相對於地圖容器的座標
-      const containerPoint = map.mouseEventToContainerPoint(e.originalEvent)
-      
-      // 獲取地理座標
-      const latlng = map.containerPointToLatLng(containerPoint)
-      
-      console.log('右鍵點擊座標：', latlng)
-      
-      // 顯示右鍵選單
-      contextMenu.value = {
-        visible: true,
-        x: e.originalEvent.clientX,
-        y: e.originalEvent.clientY,
-        clickLatLng: latlng,
-        type: 'map'
-      }
+      // 顯示選單
+      nextTick(() => {
+        contextMenu.value.visible = true
+      })
     }
 
     /**
@@ -492,22 +349,36 @@ export default defineComponent({
      * @description 在右鍵點擊位置創建服務範圍圓
      */
     const addServiceCircle = () => {
-      console.log('🎯 從右鍵選單創建服務範圍圓')
+      console.log('🎯 加入服務範圍圓')
       
-      const latlng = contextMenu.value.clickLatLng
-      if (!latlng) {
-        console.error('❌ 無法獲取右鍵點擊座標')
+      if (!contextMenu.value.latlng) {
+        console.error('無法取得點擊座標')
         return
       }
       
-      // 隱藏選單
-      hideContextMenu()
+      // 計算圓形面積 (平方公里)
+      const radiusKm = serviceCircleData.value.radius / 1000
+      const area = Math.PI * radiusKm * radiusKm
       
-      // 在點擊位置創建服務範圍圓
-      createServiceCircle(latlng)
+      // 更新服務範圍圓數據
+      serviceCircleData.value = {
+        visible: true,
+        center: [contextMenu.value.latlng.lat, contextMenu.value.latlng.lng],
+        radius: 2000,  // 2km
+        color: '#ff6b6b',
+        fillColor: '#ff6b6b',
+        fillOpacity: 0.2,
+        weight: 3,
+        opacity: 1,
+        area: area.toFixed(2),
+        showPopup: false
+      }
       
       // 更新 store 中的服務範圍圓資訊
-      mapStore.setServiceCircle(latlng, 2000)  // 2km半徑
+      mapStore.setServiceCircle(contextMenu.value.latlng, 2000)
+      
+      // 隱藏右鍵選單
+      hideContextMenu()
       
       console.log('✅ 服務範圍圓已從右鍵選單創建')
     }
@@ -546,31 +417,60 @@ export default defineComponent({
     }
 
     // ------------------------------------------------------------------------
-    // 暴露給父組件的方法
+    // GeoJSON 處理
     // ------------------------------------------------------------------------
-    
+
     /**
-     * 暴露組件方法給父組件使用
-     * @description 使用 defineExpose 將內部方法暴露，讓父組件可以直接調用
+     * GeoJSON 圖層選項
      */
-    defineExpose({
-      clearServiceCircle   // 清除服務範圍圓的方法
-    })
+    const geoJsonOptions = {
+      onEachFeature: (feature, layer) => {
+        // 可以在這裡添加額外的互動功能
+        layer.on('mouseover', (e) => {
+          e.target.setStyle({
+            weight: 3,
+            opacity: 1.0
+          })
+        })
+        
+        layer.on('mouseout', (e) => {
+          e.target.setStyle({
+            weight: 1,
+            opacity: 0.8
+          })
+        })
+      }
+    }
+
+    /**
+     * 處理 GeoJSON 圖層點擊事件
+     * @param {Object} e - 點擊事件
+     */
+    const handleGeoJsonClick = (e) => {
+      console.log('GeoJSON 圖層點擊：', e.layer.feature.properties)
+      // 可以在這裡添加額外的點擊處理邏輯
+    }
 
     // ------------------------------------------------------------------------
-    // 返回給模板使用的數據和方法
+    // 返回組件的公開介面
     // ------------------------------------------------------------------------
+    
     return {
-      mapRef,               // 地圖組件引用
-      mapPoints,            // 點位數據 (用於模板調試)
-      clearServiceCircle,   // 清除服務範圍圓的方法
-      serviceCircleData,
-      contextMenu,
-      handleRightClick,     // 右鍵點擊處理
-      addServiceCircle,     // 加入服務範圍圓
+      // 響應式數據
+      mapRef,
+      mapPoints,             // 地圖點位數據
+      geoJsonLayers,         // GeoJSON 圖層數據
+      serviceCircleData,     // 服務範圍圓數據
+      contextMenu,           // 右鍵選單數據
+      
+      // 方法函數
+      handleMapRightClick,   // 處理地圖右鍵點擊事件
+      addServiceCircle,      // 加入服務範圍圓的方法
       hideContextMenu,       // 隱藏右鍵選單
       deleteServiceCircle,   // 刪除服務範圍圓的方法
-      handleCircleRightClick // 處理圓形右鍵點擊事件
+      handleCircleRightClick, // 處理圓形右鍵點擊事件
+      geoJsonOptions,        // GeoJSON 圖層選項
+      handleGeoJsonClick     // 處理 GeoJSON 圖層點擊事件
     }
   }
 })

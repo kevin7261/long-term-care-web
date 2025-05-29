@@ -34,6 +34,7 @@
         :csv-headers="csvHeaders"
         :style="{ height: sidebarHeight + 'px' }"
         @load-csv="loadCSV"
+        @load-geojson="loadGeoJSON"
         @clear-service-circle="handleClearServiceCircle"
       />
     </template>
@@ -47,6 +48,7 @@
         :csv-headers="csvHeaders"
         :style="{ width: sidebarWidth + 'px' }"
         @load-csv="loadCSV"
+        @load-geojson="loadGeoJSON"
         @clear-service-circle="handleClearServiceCircle"
       />
       
@@ -164,6 +166,15 @@ const crosshairIcon = L.divIcon({
 const loadCSV = () => {
   console.log('開始載入 CSV 數據...')
   mapStore.loadCSV()
+}
+
+/**
+ * 載入 GeoJSON 數據
+ * @description 調用 store 中的 loadGeoJSON 方法
+ */
+const loadGeoJSON = () => {
+  console.log('開始載入 GeoJSON 數據...')
+  mapStore.loadGeoJSON()
 }
 
 /**
