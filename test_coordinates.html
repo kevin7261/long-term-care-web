@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TWD97 座標轉換測試</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .coordinate-box {
+            background: #f8f9fa;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+        .original { background: #fff3cd; }
+        .converted { background: #d1ecf1; }
+        .status { 
+            padding: 5px 10px; 
+            border-radius: 3px; 
+            font-weight: bold;
+        }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🗺️ TWD97 座標轉換測試</h1>
+        <p>測試台南市 GeoJSON 資料的座標系統檢測和轉換功能</p>
+
+        <div class="test-section">
+            <h2>📍 台南市區實際座標範例</h2>
+            <div class="coordinate-box original">
+                <strong>原始 TWD97 座標：</strong><br>
+                東座標 (X): 165295.003478<br>
+                北座標 (Y): 2540755.067444
+            </div>
+            <div id="result1" class="coordinate-box converted">
+                <strong>轉換後 WGS84 座標：</strong><br>
+                <span id="converted1">計算中...</span>
+            </div>
+            <div id="status1" class="status">狀態: 初始化中</div>
+        </div>
+
+        <div class="test-section">
+            <h2>📍 安南區實際座標範例</h2>
+            <div class="coordinate-box original">
+                <strong>原始 TWD97 座標：</strong><br>
+                東座標 (X): 165091.617678<br>
+                北座標 (Y): 2551702.102044
+            </div>
+            <div id="result2" class="coordinate-box converted">
+                <strong>轉換後 WGS84 座標：</strong><br>
+                <span id="converted2">計算中...</span>
+            </div>
+            <div id="status2" class="status">狀態: 初始化中</div>
+        </div>
+
+        <div class="test-section">
+            <h2>🔍 座標系統檢測測試</h2>
+            <div id="detection-results">
+                <p>正在檢測各種座標格式...</p>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        // 簡化版的 proj4 轉換函數（僅適用於台灣地區）
+        function twd97ToWgs84Simple(x, y) {
+            // TWD97 to WGS84 簡化轉換公式
+            // 這是近似值，實際專案中應使用 proj4js
+            
+            // TWD97 參數
+            const a = 6378137.0; // 長半軸
+            const f = 1/298.257222101; // 扁率
+            const k0 = 0.9999; // 比例因子
+            const lon0 = 121.0; // 中央經線
+            const x0 = 250000.0; // 東偏移
+            const y0 = 0.0; // 北偏移
+            
+            // 簡化轉換（台灣地區近似）
+            const deltaX = x - x0;
+            const deltaY = y - y0;
+            
+            // 概算經緯度
+            const lat = 23.0 + (deltaY / 111000.0);
+            const lng = lon0 + (deltaX / (111000.0 * Math.cos(lat * Math.PI / 180)));
+            
+            return [lng, lat];
+        }
+
+        // 座標系統檢測
+        function detectCoordinateSystem(coords) {
+            const [x, y] = coords;
+            
+            // TWD97 範圍檢測
+            if (x >= 100000 && x <= 400000 && y >= 2400000 && y <= 2800000) {
+                return 'TWD97';
+            }
+            
+            // WGS84 範圍檢測（台灣地區）
+            if (x >= 119 && x <= 122 && y >= 21.5 && y <= 25.5) {
+                return 'WGS84';
+            }
+            
+            return 'UNKNOWN';
+        }
+
+        // 測試函數
+        function runTests() {
+            console.log('🚀 開始座標轉換測試...');
+            
+            // 測試點 1: 台南市南區
+            const point1 = [165295.003478, 2540755.067444];
+            const converted1 = twd97ToWgs84Simple(point1[0], point1[1]);
+            const detection1 = detectCoordinateSystem(point1);
+            
+            document.getElementById('converted1').innerHTML = `
+                經度: ${converted1[0].toFixed(6)}<br>
+                緯度: ${converted1[1].toFixed(6)}
+            `;
+            document.getElementById('status1').innerHTML = `狀態: 檢測為 ${detection1}`;
+            document.getElementById('status1').className = 'status success';
+            
+            // 測試點 2: 台南市安南區
+            const point2 = [165091.617678, 2551702.102044];
+            const converted2 = twd97ToWgs84Simple(point2[0], point2[1]);
+            const detection2 = detectCoordinateSystem(point2);
+            
+            document.getElementById('converted2').innerHTML = `
+                經度: ${converted2[0].toFixed(6)}<br>
+                緯度: ${converted2[1].toFixed(6)}
+            `;
+            document.getElementById('status2').innerHTML = `狀態: 檢測為 ${detection2}`;
+            document.getElementById('status2').className = 'status success';
+            
+            // 座標系統檢測測試
+            const testCoords = [
+                { name: 'TWD97 範例', coords: [165295, 2540755] },
+                { name: 'WGS84 範例', coords: [120.2, 23.0] },
+                { name: '錯誤座標', coords: [999, 999] }
+            ];
+            
+            let detectionHTML = '<h3>檢測結果:</h3>';
+            testCoords.forEach(test => {
+                const result = detectCoordinateSystem(test.coords);
+                detectionHTML += `<p><strong>${test.name}</strong> [${test.coords.join(', ')}]: 
+                    <span class="status ${result === 'UNKNOWN' ? 'error' : 'success'}">${result}</span></p>`;
+            });
+            
+            document.getElementById('detection-results').innerHTML = detectionHTML;
+            
+            console.log('✅ 座標轉換測試完成');
+            console.log('結果 1:', { original: point1, converted: converted1, detected: detection1 });
+            console.log('結果 2:', { original: point2, converted: converted2, detected: detection2 });
+        }
+
+        // 頁面載入完成後執行測試
+        document.addEventListener('DOMContentLoaded', runTests);
+    </script>
+</body>
+</html> 
