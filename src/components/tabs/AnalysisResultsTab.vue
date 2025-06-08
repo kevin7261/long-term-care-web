@@ -1,5 +1,5 @@
 <template>
-  <div class="custom-scroll h-100 p-3">
+  <div class="custom-scroll h-100">
     <h5 class="mb-4">分析結果詳情</h5>
 
     <DetailItem title="總體 Moran's I 指數" value="0.6789" />
